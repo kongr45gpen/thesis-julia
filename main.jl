@@ -23,7 +23,6 @@ const d = [
 const SNR = 10 # SNR in decibels
 const total_frames = 20000;
 
-successful_frames = [0, 0]
 channel_distribution = Normal(0, √2 / 2)
 
 frame = 0
@@ -59,13 +58,10 @@ for frame ∈ ProgressBar(1:total_frames)
         log2(1 + SNRvu),
     ]
 
-    successful_frames[1] += receiver_rates[1] >= expectedrates[1];
-    successful_frames[2] += (receiver_rates[2] >= expectedrates[2] && receiver_rates[3] >= expectedrates[1]) ? 1 : 0;
-
-    # successful_frames += [
-    #     (receiver_rates[1] >= expectedrates[1]) ? 1 : 0,
-    #     (receiver_rates[2] >= expectedrates[2] && receiver_rates[3] >= expectedrates[1]) ? 1 : 0
-    # ]
+    global successful_frames += [
+        (receiver_rates[1] >= expectedrates[1]) ? 1 : 0,
+        (receiver_rates[2] >= expectedrates[2] && receiver_rates[3] >= expectedrates[1]) ? 1 : 0
+    ]
 end
 
 @debug "Completed after $total_frames iterations"

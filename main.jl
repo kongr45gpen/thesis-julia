@@ -1,6 +1,9 @@
 using Random, Distributions
 using ProgressBars
 
+# Does this work?
+ENV["JULIA_DEBUG"] = "all"
+
 const τ = 0.6 # time correlation coefficient
 const t = 3 # number of frames wrong
 const expectedrates = [
@@ -18,7 +21,7 @@ const d = [
 ]
 
 const SNR = 10 # SNR in decibels
-const total_frames = 200000
+const total_frames = 20000;
 
 successful_frames = [0, 0]
 channel_distribution = Normal(0, √2 / 2)
@@ -65,6 +68,23 @@ for frame ∈ ProgressBar(1:total_frames)
     # ]
 end
 
+@debug "Completed after $total_frames iterations"
 @info "Packet success: $successful_frames / $total_frames"
 @info "Outage rate u: $(1 - successful_frames[1] / total_frames)"
 @info "Outage rate v: $(1 - successful_frames[2] / total_frames)"
+
+# Calculate theoretical values
+σ = 10^(- SNR / 20)
+ρ = 1 / σ^2
+λ = 1 ./ (1 .+ d.^ζ)
+r = 2 .^ expectedrates .- 1
+φ = max(r[1] / (a[1] - a[2] * r[1]) , r[2] / a[2])
+
+# NOMA - Outdated CSI
+PoutTheoretical = [
+    1 - exp(- 2 * r[1] * σ^2 / (2 - τ^(2t)) / (a[1] - a[2] * r[1]) / λ[1]),
+    1 - 2 * exp(- φ * σ^2 / λ[2]) + exp(- 2 * φ * σ^2 / (2 - τ^(2t)) / λ[2])
+]
+
+@info "Theor. Outage Rate u: $(PoutTheoretical[1])"
+@info "Theor. Outage Rate v: $(PoutTheoretical[2])"

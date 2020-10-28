@@ -114,12 +114,14 @@ for τ ∈ [0.6, 1]
         PoutTheoreticalNOMA,
         yscale = :log10,
         label = ["NOMA, User u, τ = $τ" "NOMA, User v, τ = $τ"],
+        lw = 2
     )
     plot!(
         SNR,
         PoutTheoreticalOMA,
         yscale = :log10,
         label = ["OMA, User u, τ = $τ" "NOMA, User v, τ = $τ"],
+        lw = 2
     )
 end
 
@@ -129,8 +131,9 @@ plot!(
     seriestype = :scatter,
     yscale = :log10,
     label = "NOMA Simulation results",
-    size = (900, 800),
-    lw = 3
 )
 
-display(plot!(legend = :bottomleft))
+xlabel!("SNR (dB)")
+ylabel!("Outage rate")
+
+display(plot!(legend = :best, size = (1000,800)))

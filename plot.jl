@@ -18,7 +18,7 @@ const d = [
     2, # distance of user u
     1,  # distance of user v
 ]
-const total_frames = 100000
+const total_frames = 10000
 
 channel_distribution = Normal(0, √2 / 2)
 plot_points = ([], [])

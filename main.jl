@@ -25,6 +25,8 @@ const total_frames = 20000;
 
 channel_distribution = Normal(0, √2 / 2)
 
+successful_frames = [0, 0]
+
 frame = 0
 for frame ∈ ProgressBar(1:total_frames)
     # Step 1: Calculate g of channel for each user

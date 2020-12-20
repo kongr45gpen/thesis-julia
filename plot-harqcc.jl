@@ -4,6 +4,10 @@ using Plots
 
 ENV["JULIA_DEBUG"] = "all"
 
+# Partial HARQ-CC
+# Hybrid Automatic Repeat Request (Chase Combining) for the delay-tolerant
+# user.
+
 const tmax = 3 # number of frames wrong
 const expectedrates = [
     0.2, # delay-critical user u
@@ -24,7 +28,8 @@ channel_distribution = Normal(0, √2 / 2)
 outdated_state_distribution = Normal(0, √2 / 2)
 plot_points = ([], [])
 
-Threads.@threads for SNR ∈ tqdm(0:1:20)
+Threads.@threads for SNR ∈ tqdm(0:2:40)
+# for SNR in tqdm(0:1:20)
     for τ ∈ [0.862]
         successful_frames = zeros((2, 1))
 
@@ -32,34 +37,35 @@ Threads.@threads for SNR ∈ tqdm(0:1:20)
         # progress_bar = ProgressBar(1:total_frames)
         # set_description(progress_bar, "($SNR dB, τ = $τ)")
         for frame ∈ progress_bar
-            # Step 1: Calculate g of channel for each user
             h = rand(channel_distribution, (2, 2)) * [1, 1im]
-            g = h ./ sqrt.(1 .+ d .^ ζ)
-
-            # Step 1.1: Sort channel gains
-            if abs2(h[1]) > abs2(h[2])
-                h[2], h[1] = h[1], h[2]
-                g = h ./ sqrt.(1 .+ d .^ ζ)
-            end
-
             # Step 1.5: Apply time-correlated small fading coefficient
-            g = (
+
+
+            h = (
                 begin
-                    ωⱼ = first(rand(channel_distribution, (1, 2)) * [1, 1im])
-                    h_channel = τ^tmax * h[1] + √(1 - τ^(2tmax)) * ωⱼ
-                    g_channel = @. h_channel / √(1 + d[1] ^ ζ)
+                    t = repeat([tmax], 1, tmax)
+                    ωⱼ = rand(channel_distribution, (tmax, 2)) * [1, 1im]
+                    h_channel = @. τ^t * h[1] + √(1 - τ^(t)) * ωⱼ
+                    # g_channel = @. h_channel / √(1 + d[1] ^ ζ)
                 end,
                 begin
                     t = 1:tmax
                     ωⱼ = rand(outdated_state_distribution, (tmax, 2)) * [1, 1im]
                     h_channel = @. τ^t * h[2] + √(1 - τ^(2t)) * ωⱼ
-                    g_channel = @. h_channel / √(1 + d[2] ^ ζ)
+                    # g_channel = @. h_channel / √(1 + d[2] ^ ζ)
                 end
             )
 
-            #ω = rand(channel_distribution, (2, 2)) * [1, 1im]
-            #h = τ^t * h + √(1 - τ^(2t)) * ω
-            #g = h ./ sqrt.(1 .+ d .^ ζ)
+            # for t ∈ 1:tmax
+            #     if abs2(h[1][t]) > abs2(h[2][t])
+            #         h[2][t], h[1][t] = h[1][t], h[2][t]
+            #     end
+            # end
+
+            g = (
+                @. h[1] / √(1 + d[1] ^ ζ),
+                @. h[2] / √(1 + d[2] ^ ζ)
+            )
 
             # Step 2: Calculate AWGN
             σ = 10^(-SNR / 20)
@@ -67,29 +73,31 @@ Threads.@threads for SNR ∈ tqdm(0:1:20)
 
             # Step 3: Calculate reception SNR
             # Note: We are using the actual noise value n, instead of just the SNR-based σ
-            SNRuu = a[1] * abs2(g[1]) / (a[2] * abs2(g[1]) + σ^2)
+            SNRuu = @. a[1] * abs2(g[1]) / (a[2] * abs2(g[1]) + σ^2)
             SNRvv = @. a[2] * abs2(g[2]) / σ^2
             SNRvu = @. a[1] * abs2(g[2]) / (a[2] * abs2(g[2]) + σ^2)
 
             success_frame = false
-            for t ∈ 1:tmax
-                success_transmission_vv = (1 / tmax * log2(1 + sum(SNRvv[1:t]))) >= expectedrates[2]
-                success_transmission_vu = all(rate -> rate >= expectedrates[1], @. log2(1 + SNRvu[1:t]))
+            # Feedback from user to base carries ACK signal if the user decodes
+            # it successfully by combining the previously received signals
+            for t ∈ tmax:tmax # Only assume final transmission (3 ACKs), not intermediate ones
+                success_transmission_vv = (1 / t * log2(1 + sum(SNRvv[1:t]))) >= expectedrates[2]
+                # success_transmission_vu = all(rate -> rate >= expectedrates[1], @. log2(1 + SNRvu[1:t]))
+                success_transmission_vu = true # Assume that u is always successfully decoded
 
-                if success_transmission_vu && success_transmission_vv
+                if success_transmission_vv && success_transmission_vu
                     success_frame = true
                     break
                 end
             end
 
             successful_frames += [
-                log2(1 + SNRuu) >= expectedrates[1],
+                log2(1 + SNRuu[tmax]) >= expectedrates[1],
                 success_frame
             ]
         end
 
         outage_rates = @. 1 - successful_frames / total_frames
-        outage_rates[1] = 1
 
         for rate ∈ outage_rates
             if rate > 0
@@ -113,7 +121,7 @@ SNR = LinRange(0, 45, 100)
 
 L = 10 # Gaver-Stehfest procedure parameter
 
-plotly()
+plotlyjs()
 plot()
 for τ ∈ [0.8621]
     # NOMA - HARQ-CC
@@ -122,7 +130,7 @@ for τ ∈ [0.8621]
         FYₖ = Array{Float64}(undef, L)
         for k ∈ 1:L
             l = floor(Int, (k+1) / 2)
-            l = l:min(k,L÷2)
+            l = l:min(k,L÷2) # typo in paper
             ŵₖ = (-1)^(L/2 + k) * sum(@. (l^(L÷2 + 1) / factorial(L÷2) * binomial(L÷2, l) * binomial(2l, l) * binomial(l, k - l)))
             t = 1:tmax
             y = 2 ^ (tmax * expectedrates[2]) - 1
@@ -144,10 +152,9 @@ for τ ∈ [0.8621]
             -2 * (2^(2 * expectedrates[2]) - 1) / ((2 - τ^(2tmax)) * ρ * λ[2]),
         ),
     ]
-
-    label = [
-        "a"
-        "b"
+    PoutTheoreticalNOMAInit = @. [
+        1 - exp(-2 * r[1] * σ^2 / (2 - τ^(2tmax)) / (a[1] - a[2] * r[1]) / λ[1]),
+        1 - 2 * exp(-φ * σ^2 / λ[2]) + exp(-2 * φ * σ^2 / (2 - τ^(2tmax)) / λ[2]),
     ]
 
     plot!(
@@ -156,6 +163,13 @@ for τ ∈ [0.8621]
         yscale = :log10,
         label = "NOMA, User v, τ = $τ",
         lw = 2
+    )
+    plot!(
+        SNR,
+        PoutTheoreticalNOMAInit,
+        yscale = :log10,
+        label = "Correct",
+        lw = 4
     )
     plot!(
         SNR,

@@ -61,8 +61,9 @@ for frame ∈ ProgressBar(1:total_frames)
     ]
 
     global successful_frames += [
-        (receiver_rates[1] >= expectedrates[1]) ? 1 : 0,
+        (receiver_rates[1] >= expectedrates[1]) ? 1 : 0, #uu
         (receiver_rates[2] >= expectedrates[2] && receiver_rates[3] >= expectedrates[1]) ? 1 : 0
+        #vv, vu
     ]
 end
 
